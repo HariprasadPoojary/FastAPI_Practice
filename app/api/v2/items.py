@@ -52,7 +52,7 @@ def log_no_of_items_paged(paged_items: int) -> None:
     summary="List items (paged, v2).",
     dependencies=[Depends(limit_ip(times=3, seconds=60))],
 )
-# @cache(expire=60)  # Cache for 60 seconds.
+@cache(expire=60)  # Cache for 60 seconds.
 async def list_items_paged(
     pagination: Annotated[Pagination, Depends(get_pagination)],
     repo: Annotated[SQLItemRepo, Depends(get_item_repo)],
@@ -95,9 +95,7 @@ async def create_item(
     summary="Create multiple items (v2).",
 )
 async def create_items_bulk(
-    payloads: Annotated[
-        list[ItemCreate], Body(description="List of item data to create.")
-    ],
+    payloads: Annotated[list[ItemCreate], Body(description="List of item data to create.")],
     repo: Annotated[SQLItemRepo, Depends(get_item_repo)],
 ) -> list[ItemRead]:
     created_items = []
@@ -107,7 +105,13 @@ async def create_items_bulk(
     return created_items
 
 
-@router.get("", response_model=list[ItemRead], summary="List items (v2).")
+@router.get(
+    "",
+    response_model=list[ItemRead],
+    summary="List items (v2).",
+    dependencies=[Depends(limit_ip(times=3, seconds=60))],
+)
+@cache(expire=60)  # Cache for 60 seconds.
 async def list_items(
     repo: Annotated[SQLItemRepo, Depends(get_item_repo)],
     q: Annotated[
@@ -122,7 +126,12 @@ async def list_items(
     return items[:limit]
 
 
-@router.get("/{item_id}", response_model=ItemRead, summary="Get item by ID (v2).")
+@router.get(
+    "/{item_id}",
+    response_model=ItemRead,
+    summary="Get item by ID (v2).",
+    dependencies=[Depends(limit_ip(times=3, seconds=60))],
+)
 def read_item(item: Annotated[ItemRead, Depends(get_item_or_404)]) -> ItemRead:
     return item
 
@@ -136,9 +145,7 @@ async def update_item(
     updated = await repo.update(item.id, changes)
     if not updated:
         # Should not happen due to loader, but safe guard.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found.")
     # Clear all cached responses (coarse-grained but simple).
     # * When data changes (create/update), clear related caches. The simplest approach is to clear all cached entries in the project namespace after a write.
     await FastAPICache.clear()
@@ -153,9 +160,7 @@ async def update_item(
 async def get_item_summary(
     item: Annotated[ItemRead, Depends(get_item_or_404)],
 ) -> ItemSummary:
-    price, inventory = await asyncio.gather(
-        fetch_price(item.id), fetch_inventory(item.id)
-    )
+    price, inventory = await asyncio.gather(fetch_price(item.id), fetch_inventory(item.id))
     return ItemSummary(item=item, price=price, inventory=inventory)
 
 
@@ -164,9 +169,7 @@ def log_purchase(item_id: int, amount: int) -> None:
     print(f"[audit] purchase item={item_id} amount={amount}")
 
 
-@router.post(
-    "/{item_id}/purchase", summary="Queue an audit log via BackgroundTasks (v2)."
-)
+@router.post("/{item_id}/purchase", summary="Queue an audit log via BackgroundTasks (v2).")
 async def purchase_item(
     item: Annotated[ItemRead, Depends(get_item_or_404)],
     amount: Annotated[int, Body(ge=1, description="Units to purchase.")],
