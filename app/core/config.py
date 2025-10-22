@@ -11,7 +11,7 @@ class Settings(BaseModel):
     # Postgres async URL (Docker Compose will provide env vars).
     pg_database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/appdb"
     sqlite_database_url: str = "sqlite+aiosqlite:///./app.db"
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = "redis://redis:6379"
 
 
 @lru_cache
